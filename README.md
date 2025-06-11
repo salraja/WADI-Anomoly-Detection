@@ -1,6 +1,6 @@
 # WADI Anomaly Detection Bundle
 
-This repository contains everything you need to run the LSTM Autoencoder baseline on the WADI dataset. Rather than unpacking multiple files, simply download and unzip the `Research.zip` archive, which includes both the training script and the data.
+This repository contains everything you need to run the LSTM Autoencoder baseline on the WADI dataset. Download and unzip the `Research.zip` archive to get both the training script and the data in one go.
 
 ## What’s inside `Research.zip`
 
@@ -14,9 +14,10 @@ This repository contains everything you need to run the LSTM Autoencoder baselin
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/salraja/WADI-Anomaly-Research-Zip.git
-   cd WADI-Anomaly-Research-Zip
+   git clone https://github.com/salraja/WADI-Anomoly-Detection.git
+   cd WADI-Anomoly-Detection
 Unzip the bundle:
+
 
 unzip Research.zip -d wadi_bundle
 cd wadi_bundle
@@ -28,21 +29,28 @@ Install the required packages:
 
 pip install -r requirements.txt
 How to run
-From inside the wadi_bundle folder, launch the training and evaluation with:
+Inside the wadi_bundle folder, run:
+
 
 python train_lstm.py --epochs 10
-You can change the number of epochs by adjusting the --epochs flag (default is 5).
+The --epochs flag controls how many training iterations to run (default: 5).
 
-When you run the script it will:
+When you execute the script, it will:
 
-Load and combine the two CSV files
-Read the attack windows from the Excel file
-Fill missing values, scale features, and split data into 100-second windows
-Create a balanced test set (50% normal, 50% attack)
-Train the LSTM Autoencoder and report the ROC-AUC score
-Print out the top 5 most anomalous windows, showing both per-feature error and permutation-importance scores
+Load and merge the two CSV files
+
+Parse attack intervals from the Excel sheet
+
+Fill missing values, scale features, and slice into 100-second windows
+
+Build a balanced test set (50% normal, 50% attack)
+
+Train the LSTM Autoencoder and print the ROC-AUC
+
+List the top 5 anomalous windows with per-feature error and permutation-importance scores
 
 Example output
+
 Loading WADI_14days.csv …
 Loading WADI_attackdata.csv …
 Total rows loaded: 1,382,402
@@ -62,10 +70,10 @@ Window #64  MSE=2194.40
   • 2_FIT_001_PV      err=10.99   ΔMSE= 85.43
   • …
 License
-This project (both code and data bundle) is released under the MIT License. See the LICENSE file for details.
+This project (code + data bundle) is released under the MIT License. See LICENSE for details.
 
-If you use this work
-Please cite:
+Citation
+If you use this work in your research, please cite:
 
 @article{shahid2025wadi,
   author       = {Salman Shahid},
@@ -73,5 +81,5 @@ Please cite:
   journal      = {IEEE Transactions on Information Forensics and Security},
   year         = {2025},
   doi          = {10.1109/TIFS.2025.xxxxxx},
-  url          = {https://github.com/salraja/WADI-Anomaly-Research-Zip}
+  url          = {https://github.com/salraja/WADI-Anomoly-Detection}
 }
