@@ -1,6 +1,13 @@
 # WADI Anomaly Detection Bundle
 
 This repository contains everything you need to run the LSTM Autoencoder baseline on the WADI dataset. Download and unzip the `Research.zip` archive to get both the training script and the data in one go.
+## What’s in this repo
+
+- `train_lstm.py` ← the main training/eval script (also inside Research.zip)  
+- `Research.zip` ← bundle of code + data  
+
+You can either run `python train_lstm.py` directly, or unzip `Research.zip`
+to get the same files plus the CSV/XLS/XLSX data.
 
 ## What’s inside `Research.zip`
 
