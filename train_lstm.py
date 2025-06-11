@@ -18,32 +18,29 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import roc_auc_score
 
-# reproducibility ─────────────────────────────────────────────────────────
 SEED = 0
 random.seed(SEED); np.random.seed(SEED); torch.manual_seed(SEED)
 
-# ─────────────────────────────  CLI  ─────────────────────────────────────
 parser = argparse.ArgumentParser()
 parser.add_argument("--epochs", type=int, default=5, help="training epochs")
 args = parser.parse_args()
 
-# ───────────────────────  1) CSV LOADERS  ────────────────────────────────
 def load_csv(path: str) -> pd.DataFrame:
     """Load one of the WADI CSVs and build a proper timestamp column."""
-    # find header row (first line that starts with Row,Date,Time)
+  
     with open(path) as fh:
         for idx, line in enumerate(fh):
             if line.startswith("Row,Date,Time"):
                 header = idx
                 break
     df = pd.read_csv(path, skiprows=header, low_memory=False)
-    # shorten absurd OPC-tag columns
+
     df.columns = [c.split("\\")[-1].strip() for c in df.columns]
-    # build datetime – allow AM/PM *or* fractional seconds
+   
     ts_raw = df["Date"].astype(str) + " " + df["Time"].astype(str)
     df["timestamp"] = pd.to_datetime(ts_raw, errors="coerce",
                                      format="%m/%d/%Y %I:%M:%S %p")
-    # if the fast path fails, let pandas guess
+   
     bad = df["timestamp"].isna()
     if bad.any():
         df.loc[bad, "timestamp"] = pd.to_datetime(ts_raw[bad], errors="coerce")
@@ -60,7 +57,6 @@ data = (pd.concat([part1, part2], ignore_index=True)
 
 print(f"✓  Total rows loaded: {len(data):,}")
 
-# ───────────────  2) READ & NORMALISE ATTACK-SHEET  ─────────────────────
 xls_raw = pd.read_excel("attack_description.xlsx", header=None,
                         engine="openpyxl")
 hdr_row = xls_raw[xls_raw.iloc[:, 0].eq("S.No")].index[0]
@@ -68,13 +64,12 @@ meta = (pd.read_excel("attack_description.xlsx", header=hdr_row,
                       engine="openpyxl")
           .rename(columns=lambda c: c.strip()))
 
-# Date cleanup
 meta["date_only"] = (pd.to_datetime(meta["Date"], errors="coerce")
                        .dt.strftime("%Y-%m-%d"))
 
 def _clean_time(col):
     return (meta[col].astype(str)
-                .str.replace(r"[^\d:]", ":", regex=True)   # 11.30:40 → 11:30:40
+                .str.replace(r"[^\d:]", ":", regex=True)   
                 .str.strip())
 
 meta["start_ts"] = pd.to_datetime(
@@ -84,7 +79,6 @@ meta["end_ts"] = pd.to_datetime(
     meta["date_only"] + " " + _clean_time("End Time"),
     format="%Y-%m-%d %H:%M:%S", errors="coerce")
 
-# ────────────────  3) LABEL THE MAIN DATAFRAME  ─────────────────────────
 data["attack_label"] = 1
 for _, r in meta.dropna(subset=["start_ts", "end_ts"]).iterrows():
     mask = (data.timestamp.between(r.start_ts, r.end_ts))
@@ -92,7 +86,6 @@ for _, r in meta.dropna(subset=["start_ts", "end_ts"]).iterrows():
 
 print("Label distribution:\n", data.attack_label.value_counts(), "\n")
 
-# ────────────────  4) FILL ▸ SCALE ▸ WINDOW  ────────────────────────────
 features = [c for c in data.columns if c not in ("timestamp", "attack_label")]
 
 X_df = data[features].copy().ffill().bfill().fillna(0)
@@ -109,19 +102,17 @@ labels = (y_win == -1).any(axis=1).astype(int)
 
 print(f"Windowed shape: {X_win.shape}")
 
-# balanced test (attack = normal) ————————————————————————————————
 att_idx, norm_idx = np.where(labels==1)[0], np.where(labels==0)[0]
 rng = np.random.default_rng(SEED)
 test_idx = np.concatenate([att_idx, rng.choice(norm_idx, len(att_idx), False)])
 train_idx = np.setdiff1d(np.arange(n_win), test_idx)
 
-X_train = X_win[train_idx]           # only normal windows
+X_train = X_win[train_idx]           
 X_test  = X_win[test_idx]
 y_test  = labels[test_idx]
 
 print(f"Train windows: {X_train.shape} | Test windows: {X_test.shape}\n")
 
-# ───────────────────────  5) LSTM - AUTOENCODER  ────────────────────────
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class LSTMAE(nn.Module):
@@ -134,22 +125,18 @@ class LSTMAE(nn.Module):
         self.out = nn.Linear(h, n_feat)
 
     def forward(self, x):
-        # ----- encoder -----
-        enc_seq, (hN, _) = self.enc(x)          # enc_seq: (B,T,h)
-        z   = torch.tanh(self.e2c(hN[-1]))      # code  : (B,code)
+     
+        enc_seq, (hN, _) = self.enc(x)          
+        z   = torch.tanh(self.e2c(hN[-1]))      
 
-        # ----- prepare decoder initial state -----
-        h0  = torch.tanh(self.c2h(z)).unsqueeze(0)  # (1,B,h)
+        h0  = torch.tanh(self.c2h(z)).unsqueeze(0)  
         c0  = torch.zeros_like(h0)
+        
+        dec_in = torch.zeros_like(enc_seq)     
 
-        # feed zeros (or any BOS token) with *hidden*-dim features
-        dec_in = torch.zeros_like(enc_seq)      # (B,T,h)
+        dec_seq, _ = self.dec(dec_in, (h0, c0)) 
 
-        # ----- decoder -----
-        dec_seq, _ = self.dec(dec_in, (h0, c0)) # (B,T,h)
-
-        # map back to original feature space
-        return self.out(dec_seq)                # (B,T,n_feat)
+        return self.out(dec_seq)              
 
 model  = LSTMAE(X_train.shape[2]).to(device)
 optim_ = optim.Adam(model.parameters(), lr=1e-3)
@@ -167,7 +154,6 @@ for epoch in range(1, args.epochs+1):
         tot += loss.item()*len(batch)
     print(f"Epoch {epoch}/{args.epochs}   loss = {tot/len(loader.dataset):.6f}")
 
-# ─────────────────────────  6) TEST ROC-AUC  ────────────────────────────
 model.eval()
 with torch.no_grad():
     recon = model(torch.tensor(X_test).to(device)).cpu().numpy()
@@ -175,7 +161,6 @@ with torch.no_grad():
 mse = ((recon - X_test)**2).mean(axis=(1,2))
 print("\nTest ROC-AUC:", roc_auc_score(y_test, mse).round(4))
 
-# ─────────────  7) TOP-N WINDOWS  +  PERM-IMPORT  ───────────────────────
 top_n = np.argsort(mse)[::-1][:5]
 print("\nTop-5 anomalous windows (+ feature MSE):\n")
 for w_idx in top_n:
